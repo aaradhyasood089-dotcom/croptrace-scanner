@@ -1,0 +1,186 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CropTrace QR Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f7ef;
+      color: #20432e;
+    }
+    header {
+      background: #174c35;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+    header h1 { margin: 0; }
+    main {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 20px;
+    }
+    .panel {
+      background: white;
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 4px 18px #173c2815;
+    }
+    #reader {
+      width: 100%;
+      margin: 18px auto;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    button, .link {
+      display: inline-block;
+      border: 0;
+      border-radius: 9px;
+      padding: 13px 17px;
+      margin: 6px 4px 6px 0;
+      background: #24734a;
+      color: white;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .secondary { background: #e4eee1; color: #174c35; }
+    #status { line-height: 1.5; overflow-wrap: anywhere; }
+    #result {
+      display: none;
+      background: #edf6e9;
+      padding: 16px;
+      border-radius: 12px;
+      overflow-wrap: anywhere;
+    }
+    .hint { color: #657568; line-height: 1.5; }
+    footer { text-align: center; padding: 20px; color: #657568; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌱 CropTrace</h1>
+    <p>Scan a crop's QR code</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>📷 Live QR Scanner</h2>
+      <p class="hint">
+        Allow camera access when prompted and hold the QR code
+        steady inside the scanning frame.
+      </p>
+
+      <button id="startBtn" onclick="startScanner()">Start camera</button>
+      <button id="stopBtn" class="secondary" onclick="stopScanner()" disabled>
+        Stop camera
+      </button>
+
+      <div id="reader"></div>
+      <p id="status" role="status">Camera has not started yet.</p>
+
+      <div id="result">
+        <h3>QR code detected! ✓</h3>
+        <p id="qrText"></p>
+        <button class="secondary" onclick="copyResult()">Copy result</button>
+        <a id="openLink" class="link" href="#" target="_blank"
+           rel="noopener" style="display:none">Open scanned link</a>
+        <p class="hint">
+          If the QR contains a CropTrace batch ID, use that ID to
+          search for its journey in CropTrace.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>CropTrace · Farm-to-table transparency</footer>
+
+  <script>
+    let scanner = null;
+    let lastResult = '';
+    let running = false;
+
+    async function startScanner() {
+      if (running) return;
+
+      if (typeof Html5Qrcode === 'undefined') {
+        document.getElementById('status').textContent =
+          'Scanner library did not load. Check your internet connection and refresh.';
+        return;
+      }
+
+      try {
+        scanner = new Html5Qrcode('reader');
+        document.getElementById('status').textContent =
+          'Requesting camera permission…';
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 240, height: 240 } },
+          function(decodedText) {
+            lastResult = decodedText;
+            document.getElementById('qrText').textContent = decodedText;
+            document.getElementById('result').style.display = 'block';
+
+            const link = document.getElementById('openLink');
+            if (/^https?:\/\//i.test(decodedText)) {
+              link.href = decodedText;
+              link.style.display = 'inline-block';
+            } else {
+              link.style.display = 'none';
+            }
+
+            document.getElementById('status').textContent =
+              'QR code scanned successfully.';
+            stopScanner();
+          },
+          function() {}
+        );
+
+        running = true;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        document.getElementById('status').textContent =
+          'Camera is on. Point it at a QR code.';
+      } catch (error) {
+        document.getElementById('status').textContent =
+          'Could not start camera. Allow camera permission and open this page using its HTTPS GitHub Pages link. Details: ' +
+          error;
+        if (scanner) {
+          try { await scanner.clear(); } catch (e) {}
+          scanner = null;
+        }
+      }
+    }
+
+    async function stopScanner() {
+      if (scanner && running) {
+        try { await scanner.stop(); } catch (e) {}
+        try { await scanner.clear(); } catch (e) {}
+      }
+      running = false;
+      scanner = null;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+    }
+
+    async function copyResult() {
+      if (!lastResult) return;
+      try {
+        await navigator.clipboard.writeText(lastResult);
+        document.getElementById('status').textContent = 'QR result copied.';
+      } catch (error) {
+        document.getElementById('status').textContent =
+          'Please select and copy the QR result manually.';
+      }
+    }
+  </script>
+</body>
+</html>
